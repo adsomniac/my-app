@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Builds & Binaries
+dist/
+frontend/dist/
+*.exe
+my-app.exe
+
+# Environment & Credentials
+.env
