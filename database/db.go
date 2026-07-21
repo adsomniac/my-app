@@ -1,4 +1,4 @@
-package db
+package database
 
 import (
 	"database/sql"
@@ -8,8 +8,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// DB holds the global database instance
 var DB *sql.DB
 
+// InitDB initializes the connection to the PostgreSQL database
 func InitDB(databaseURL string) (*sql.DB, error) {
 	if databaseURL == "" {
 		log.Println("Warning: DATABASE_URL is empty. Running without database connection.")
