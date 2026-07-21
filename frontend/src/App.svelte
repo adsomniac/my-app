@@ -1,221 +1,194 @@
 <script>
   import { onMount } from 'svelte';
+  import Card from '$lib/components/ui/Card.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import Badge from '$lib/components/ui/Badge.svelte';
+  import { 
+    Activity, 
+    Database, 
+    Wifi, 
+    WifiOff, 
+    RefreshCw, 
+    Server, 
+    CheckCircle2, 
+    XCircle, 
+    AlertCircle, 
+    Layers 
+  } from 'lucide-svelte';
 
   let apiStatus = 'checking...';
   let dbStatus = 'checking...';
   let apiMessage = '';
-  let isOnline = navigator.onLine;
+  let isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  let loading = false;
 
   async function checkHealth() {
+    loading = true;
     try {
       const res = await fetch('/api/health');
       if (res.ok) {
         const data = await res.json();
         apiStatus = data.status || 'ok';
         dbStatus = data.database || 'disconnected';
-        apiMessage = data.message || '';
+        apiMessage = data.message || 'Server active';
       } else {
         apiStatus = 'error';
         dbStatus = 'unknown';
+        apiMessage = 'Received error status from server';
       }
     } catch (err) {
-      apiStatus = 'offline / unreachable';
+      apiStatus = 'offline';
       dbStatus = 'unknown';
+      apiMessage = 'Failed to connect to backend server';
+    } finally {
+      loading = false;
     }
+  }
+
+  function handleOnlineStatus() {
+    isOnline = navigator.onLine;
   }
 
   onMount(() => {
     checkHealth();
+    window.addEventListener('online', handleOnlineStatus);
+    window.addEventListener('offline', handleOnlineStatus);
 
-    window.addEventListener('online', () => (isOnline = true));
-    window.addEventListener('offline', () => (isOnline = false));
+    return () => {
+      window.removeEventListener('online', handleOnlineStatus);
+      window.removeEventListener('offline', handleOnlineStatus);
+    };
   });
 </script>
 
-<main class="container">
-  <header class="header">
-    <div class="badge-row">
-      <span class="badge {isOnline ? 'badge-online' : 'badge-offline'}">
-        {isOnline ? '● Online' : '○ Offline Mode'}
-      </span>
-      <span class="badge badge-pwa">⚡ PWA Ready</span>
+<main class="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-between p-6 sm:p-12 relative overflow-hidden">
+  <!-- Glow background highlights -->
+  <div class="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute bottom-1/4 left-1/3 w-80 h-80 bg-purple-600/15 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- Header -->
+  <header class="w-full max-w-4xl flex items-center justify-between z-10 border-b border-slate-800 pb-6">
+    <div class="flex items-center gap-3">
+      <div class="p-2.5 bg-blue-600/10 border border-blue-500/30 rounded-xl text-blue-400">
+        <Layers class="w-6 h-6" />
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-white tracking-tight">Golang Monolith SPA</h1>
+        <p class="text-xs text-slate-400">Modular MVC Backend & Svelte Frontend</p>
+      </div>
     </div>
-    <h1>Monolith App</h1>
-    <p class="subtitle">Golang + Svelte.js + PostgreSQL + PWA</p>
+
+    <div class="flex items-center gap-3">
+      {#if isOnline}
+        <Badge variant="success">
+          <Wifi class="w-3.5 h-3.5" />
+          Online
+        </Badge>
+      {:else}
+        <Badge variant="destructive">
+          <WifiOff class="w-3.5 h-3.5" />
+          Offline
+        </Badge>
+      {/if}
+
+      <Button variant="outline" size="sm" on:click={checkHealth} disabled={loading}>
+        <RefreshCw class={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+        Refresh
+      </Button>
+    </div>
   </header>
 
-  <section class="grid">
-    <div class="card">
-      <div class="card-icon">🚀</div>
-      <h3>Backend Status</h3>
-      <p class="status-val {apiStatus === 'ok' ? 'text-success' : 'text-warning'}">
-        {apiStatus.toUpperCase()}
+  <!-- Hero Content & Status Grid -->
+  <div class="w-full max-w-4xl my-auto py-12 z-10 flex flex-col gap-8">
+    <div class="text-center space-y-3">
+      <Badge variant="outline" classNames="px-4 py-1.5 text-xs text-blue-400 border-blue-500/30 bg-blue-500/5">
+        <Activity class="w-3.5 h-3.5 text-blue-400" />
+        System Health Monitor
+      </Badge>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+        Aplikasi Full-Stack Siap Production
+      </h2>
+      <p class="text-sm sm:text-base text-slate-400 max-w-xl mx-auto">
+        Integrasi sempurna antara Golang Backend (Modular MVC) dan Svelte Frontend (shadcn-svelte + Tailwind CSS).
       </p>
-      <span class="card-desc">{apiMessage || 'Golang HTTP Monolith Server'}</span>
     </div>
 
-    <div class="card">
-      <div class="card-icon">🐘</div>
-      <h3>PostgreSQL</h3>
-      <p class="status-val {dbStatus === 'connected' ? 'text-success' : 'text-muted'}">
-        {dbStatus.toUpperCase()}
-      </p>
-      <span class="card-desc">Database connection pool</span>
-    </div>
+    <!-- Status Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- API Server Status -->
+      <Card classNames="flex flex-col justify-between">
+        <div class="flex items-start justify-between">
+          <div class="flex items-center gap-3">
+            <div class="p-3 bg-slate-800 rounded-lg text-blue-400 border border-slate-700">
+              <Server class="w-6 h-6" />
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-slate-100">API Server</h3>
+              <p class="text-xs text-slate-400">REST API Service Status</p>
+            </div>
+          </div>
+          {#if apiStatus === 'ok'}
+            <Badge variant="success">
+              <CheckCircle2 class="w-3.5 h-3.5" />
+              Active
+            </Badge>
+          {:else if apiStatus === 'checking...'}
+            <Badge variant="warning">
+              <AlertCircle class="w-3.5 h-3.5 animate-pulse" />
+              Checking...
+            </Badge>
+          {:else}
+            <Badge variant="destructive">
+              <XCircle class="w-3.5 h-3.5" />
+              Error
+            </Badge>
+          {/if}
+        </div>
+        <div class="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Response Message:</span>
+          <span class="font-mono text-slate-200">{apiMessage || 'No status'}</span>
+        </div>
+      </Card>
 
-    <div class="card">
-      <div class="card-icon">📲</div>
-      <h3>PWA Capabilities</h3>
-      <p class="status-val text-info">ACTIVE</p>
-      <span class="card-desc">Service Worker & Manifest enabled</span>
+      <!-- Database Status -->
+      <Card classNames="flex flex-col justify-between">
+        <div class="flex items-start justify-between">
+          <div class="flex items-center gap-3">
+            <div class="p-3 bg-slate-800 rounded-lg text-purple-400 border border-slate-700">
+              <Database class="w-6 h-6" />
+            </div>
+            <div>
+              <h3 class="text-base font-semibold text-slate-100">Database</h3>
+              <p class="text-xs text-slate-400">PostgreSQL Connection</p>
+            </div>
+          </div>
+          {#if dbStatus === 'connected'}
+            <Badge variant="success">
+              <CheckCircle2 class="w-3.5 h-3.5" />
+              Connected
+            </Badge>
+          {:else if dbStatus === 'checking...'}
+            <Badge variant="warning">
+              <AlertCircle class="w-3.5 h-3.5 animate-pulse" />
+              Checking...
+            </Badge>
+          {:else}
+            <Badge variant="default">
+              <AlertCircle class="w-3.5 h-3.5 text-slate-400" />
+              {dbStatus}
+            </Badge>
+          {/if}
+        </div>
+        <div class="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs">
+          <span class="text-slate-400">Database Status:</span>
+          <span class="font-mono text-slate-200 capitalize">{dbStatus}</span>
+        </div>
+      </Card>
     </div>
-  </section>
+  </div>
 
-  <footer class="footer">
-    <button class="btn" on:click={checkHealth}>Refresh Status</button>
+  <!-- Footer -->
+  <footer class="w-full max-w-4xl border-t border-slate-800/80 pt-6 text-center text-xs text-slate-500 z-10">
+    <p>Golang Monolith + Svelte (shadcn-svelte UI) &bull; Refactored Clean Architecture</p>
   </footer>
 </main>
-
-<style>
-  :global(body) {
-    margin: 0;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #0f172a;
-    color: #f8fafc;
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .container {
-    max-width: 800px;
-    width: 90%;
-    margin: 2rem auto;
-    padding: 2.5rem;
-    background: rgba(30, 41, 59, 0.7);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 24px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  }
-
-  .header {
-    text-align: center;
-    margin-bottom: 2.5rem;
-  }
-
-  .badge-row {
-    display: flex;
-    justify-content: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
-
-  .badge {
-    padding: 0.35rem 0.85rem;
-    border-radius: 9999px;
-    font-size: 0.8rem;
-    font-weight: 600;
-  }
-
-  .badge-online {
-    background: rgba(34, 197, 94, 0.2);
-    color: #4ade80;
-    border: 1px solid rgba(34, 197, 94, 0.4);
-  }
-
-  .badge-offline {
-    background: rgba(239, 68, 68, 0.2);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.4);
-  }
-
-  .badge-pwa {
-    background: rgba(168, 85, 247, 0.2);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.4);
-  }
-
-  h1 {
-    font-size: 2.5rem;
-    margin: 0.5rem 0;
-    background: linear-gradient(135deg, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .subtitle {
-    color: #94a3b8;
-    margin: 0;
-    font-size: 1.05rem;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .card {
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    padding: 1.5rem;
-    border-radius: 16px;
-    text-align: center;
-    transition: transform 0.2s ease, border-color 0.2s ease;
-  }
-
-  .card:hover {
-    transform: translateY(-4px);
-    border-color: rgba(56, 189, 248, 0.4);
-  }
-
-  .card-icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-
-  h3 {
-    margin: 0.25rem 0;
-    font-size: 1.1rem;
-    color: #e2e8f0;
-  }
-
-  .status-val {
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin: 0.5rem 0;
-  }
-
-  .text-success { color: #4ade80; }
-  .text-warning { color: #fbbf24; }
-  .text-info { color: #38bdf8; }
-  .text-muted { color: #64748b; }
-
-  .card-desc {
-    font-size: 0.825rem;
-    color: #94a3b8;
-  }
-
-  .footer {
-    text-align: center;
-  }
-
-  .btn {
-    background: linear-gradient(135deg, #0284c7, #4f46e5);
-    color: white;
-    border: none;
-    padding: 0.85rem 2rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-  }
-
-  .btn:hover {
-    opacity: 0.9;
-  }
-</style>
