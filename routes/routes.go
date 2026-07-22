@@ -9,9 +9,14 @@ import (
 )
 
 // SetupRoutes registers all application API routes and static SPA fallback routes
-func SetupRoutes(mux *http.ServeMux) {
-	// Register API Routes
+func SetupRoutes(mux *http.ServeMux, authController *controllers.AuthController, authMiddleware *controllers.AuthMiddlewareProvider) {
+	// Register Health API Routes
 	RegisterHealthRoutes(mux)
+
+	// Register Auth API Routes
+	if authController != nil && authMiddleware != nil {
+		RegisterAuthRoutes(mux, authController, authMiddleware)
+	}
 
 	// Static Files & SPA fallback from frontend/dist
 	staticDir := "frontend/dist"

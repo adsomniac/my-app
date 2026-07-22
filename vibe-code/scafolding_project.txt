@@ -1,0 +1,56 @@
+================================================================================
+Scaffolding Project
+Tanggal  : 21 Juli 2026
+Topik    : Golang Monolith + Svelte Frontend Development
+================================================================================
+
+--------------------------------------------------------------------------------
+[1] PEMBUATAN ISSUE.MD (Perencanaan untuk Junior Developer)
+--------------------------------------------------------------------------------
+
+USER:
+  "Buatkan issue.md, berisi planning untuk membuat ini:
+  
+  Buat project baru di folder ini
+  XXX
+  XX
+  X
+  
+  Jangan terlalu low level atau detail.
+
+Cukup instruksikan secara high level.
+
+Nanti dokumen planning-nya akan digunakan oleh Programmer atau model yang lebih mahir untuk diimplementasikan."
+
+--------------------------------------------------------------------------------
+[2] SUBMIT ISSUE KE GITHUB
+--------------------------------------------------------------------------------
+
+USER:
+  "Submit issue.md sebagai GitHub issue baru."
+
+--------------------------------------------------------------------------------
+[3] IMPLEMENTASI GITHUB ISSUE
+--------------------------------------------------------------------------------
+
+USER:
+  "Kerjakan github issue: https://github.com/adsomniac/my-app/issues/4"
+
+--------------------------------------------------------------------------------
+[4] PEMBUATAN PULL REQUEST KE BRANCH MAIN
+--------------------------------------------------------------------------------
+
+USER:
+  "Buatkan pull request ke branch main di GitHub atas perubahan ini."
+
+--------------------------------------------------------------------------------
+[5] PULL REQUEST 
+--------------------------------------------------------------------------------
+
+USER:
+  1. Pada tab pull request di github, klik "Merge Pull request"
+  2. Lalu "Delete Branch"
+
+================================================================================
+END OF RECAP
+================================================================================

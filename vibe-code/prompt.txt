@@ -1,0 +1,1429 @@
+Buatkan issue.md yang berisi perencanaan untuk nanti diimplementasikan oleh junior programmer atau AI model yang lebih murah.
+
+Isi dari planning-nya adalah sebagai berikut:
+# ISSUE: Implementasi Authentication & Role-Based Authorization dengan JWT
+
+## 📌 Deskripsi
+
+Implementasikan sistem Authentication dan Authorization untuk aplikasi menggunakan:
+
+* Backend: Golang `net/http`
+* Frontend: Svelte 5
+* Database: PostgreSQL
+* Authentication: JWT
+* Password Hashing: bcrypt
+* Authorization: Role-Based Access Control (RBAC)
+
+Sistem memiliki tiga role:
+
+```text
+user
+admin
+super_admin
+```
+
+Setelah berhasil login, user diarahkan ke halaman sesuai role.
+
+| Role          | Dashboard     |
+| ------------- | ------------- |
+| `user`        | `/dashboard`  |
+| `admin`       | `/admin`      |
+| `super_admin` | `/superadmin` |
+
+---
+
+# 🏗️ Struktur Folder
+
+Gunakan struktur berikut:
+
+```text
+My App/
+│
+├── config/
+│   └── config.go
+│
+├── database/
+│   ├── connection.go
+│   └── migrations/
+│       └── 001_create_users_table.sql
+│
+├── models/
+│   └── user.go
+│
+├── repositories/
+│   └── user_repository.go
+│
+├── services/
+│   └── auth_service.go
+│
+├── controllers/
+│   ├── auth_controller.go
+│   └── auth_middleware.go
+│
+├── routes/
+│   ├── routes.go
+│   └── auth_routes.go
+│
+├── utils/
+│   └── jwt.go
+│
+├── frontend/
+│   └── src/
+│       ├── lib/
+│       │   ├── components/
+│       │   │   ├── ui/
+│       │   │   │   ├── Button.svelte
+│       │   │   │   ├── Card.svelte
+│       │   │   │   └── Badge.svelte
+│       │   │   │
+│       │   │   ├── LoginPage.svelte
+│       │   │   ├── Dashboard.svelte
+│       │   │   ├── UserDashboard.svelte
+│       │   │   ├── AdminDashboard.svelte
+│       │   │   └── SuperAdminDashboard.svelte
+│       │   │
+│       │   ├── stores/
+│       │   │   └── auth.svelte.js
+│       │   │
+│       │   └── api/
+│       │       └── auth.js
+│       │
+│       ├── App.svelte
+│       └── app.css
+│
+├── .env
+├── .env.example
+├── go.mod
+├── go.sum
+└── main.go
+```
+
+---
+
+# 🧱 Aturan Arsitektur
+
+Gunakan alur berikut:
+
+```text
+HTTP Request
+     ↓
+   Routes
+     ↓
+ Controller
+     ↓
+   Service
+     ↓
+ Repository
+     ↓
+  Database
+```
+
+Untuk JWT:
+
+```text
+Controller / Middleware
+          ↓
+       JWT Utility
+          ↓
+       JWT Token
+```
+
+## Tanggung Jawab Layer
+
+### Controller
+
+Bertanggung jawab terhadap:
+
+* HTTP Request
+* Decode JSON
+* Validasi input dasar
+* Memanggil Service
+* HTTP Status Code
+* JSON Response
+
+Tidak boleh menjadi tempat semua logic bisnis.
+
+---
+
+### Service
+
+Bertanggung jawab terhadap:
+
+* Business logic
+* Validasi credential
+* Verifikasi password
+* Pemeriksaan user aktif
+* Generate JWT
+
+Service tidak boleh mengetahui detail HTTP.
+
+Tidak boleh menggunakan:
+
+```go
+http.ResponseWriter
+```
+
+atau:
+
+```go
+json.NewEncoder(w)
+```
+
+---
+
+### Repository
+
+Bertanggung jawab terhadap:
+
+* Query database
+* Insert data
+* Update data
+* Mengambil data dari PostgreSQL
+
+Repository tidak boleh:
+
+* Generate JWT
+* Mengatur HTTP Response
+* Membaca Authorization Header
+
+---
+
+### Middleware
+
+Bertanggung jawab terhadap:
+
+* Membaca JWT dari request
+* Validasi token
+* Mengecek expiration
+* Mengambil informasi user
+* Menyimpan informasi user ke `context.Context`
+
+---
+
+# PHASE 1 — Database Migration
+
+## File
+
+```text
+database/migrations/001_create_users_table.sql
+```
+
+Buat tabel:
+
+```sql
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+
+    email VARCHAR(255) NOT NULL,
+
+    password_hash TEXT NOT NULL,
+
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT users_role_check
+        CHECK (
+            role IN (
+                'user',
+                'admin',
+                'super_admin'
+            )
+        )
+);
+```
+
+Buat unique index untuk email:
+
+```sql
+CREATE UNIQUE INDEX users_email_unique
+ON users (LOWER(email));
+```
+
+## Tujuan
+
+Database harus mencegah:
+
+```text
+Role tidak valid
+Email duplikat
+User tanpa password
+User tanpa email
+```
+
+## Acceptance Criteria
+
+* [ ] Tabel `users` berhasil dibuat
+* [ ] `id` menggunakan auto increment
+* [ ] `email` wajib diisi
+* [ ] Email tidak boleh duplikat
+* [ ] Email bersifat case-insensitive
+* [ ] `password_hash` wajib diisi
+* [ ] Role default adalah `user`
+* [ ] Role hanya boleh:
+
+  * [ ] `user`
+  * [ ] `admin`
+  * [ ] `super_admin`
+* [ ] `is_active` default `true`
+* [ ] Timestamp menggunakan `TIMESTAMPTZ`
+
+---
+
+# PHASE 2 — Dependency & Configuration
+
+Install JWT:
+
+```bash
+go get github.com/golang-jwt/jwt/v5
+```
+
+Install bcrypt:
+
+```bash
+go get golang.org/x/crypto
+```
+
+Tambahkan `.env`:
+
+```env
+JWT_SECRET=isi_dengan_random_string_panjang
+JWT_EXPIRE_HOURS=24
+```
+
+Contoh:
+
+```env
+JWT_SECRET=super-random-secret-key-minimum-32-characters
+JWT_EXPIRE_HOURS=24
+```
+
+## Update `config/config.go`
+
+```go
+type Config struct {
+    Port           string
+    DatabaseURL    string
+    JWTSecret      string
+    JWTExpireHours int
+}
+```
+
+## Rules
+
+* [ ] JWT secret tidak boleh hardcode
+* [ ] JWT secret dibaca dari environment variable
+* [ ] Aplikasi tidak boleh berjalan jika JWT secret kosong
+* [ ] JWT expiration berasal dari konfigurasi
+* [ ] `.env` tidak boleh di-commit ke repository
+* [ ] `.env.example` harus tersedia
+
+Contoh:
+
+```env
+JWT_SECRET=
+JWT_EXPIRE_HOURS=24
+```
+
+---
+
+# PHASE 3 — User Model
+
+## File
+
+```text
+models/user.go
+```
+
+Buat:
+
+```go
+type User struct {
+    ID           int64     `json:"id"`
+    Email        string    `json:"email"`
+    PasswordHash string    `json:"-"`
+    Role         string    `json:"role"`
+    IsActive     bool      `json:"is_active"`
+    CreatedAt    time.Time `json:"created_at"`
+    UpdatedAt    time.Time `json:"updated_at"`
+}
+```
+
+Password hash harus menggunakan:
+
+```go
+PasswordHash string `json:"-"`
+```
+
+Agar tidak secara tidak sengaja dikirim ke frontend.
+
+## Login Request
+
+```go
+type LoginRequest struct {
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+```
+
+## Login Result
+
+```go
+type LoginResult struct {
+    Token string
+    User  User
+}
+```
+
+---
+
+# PHASE 4 — API Contract
+
+Sebelum implementasi controller, endpoint harus memiliki kontrak yang jelas.
+
+## Login
+
+```text
+POST /api/auth/login
+```
+
+Request:
+
+```json
+{
+    "email": "admin@test.com",
+    "password": "password123"
+}
+```
+
+Response sukses:
+
+```json
+{
+    "success": true,
+    "message": "Login berhasil",
+    "data": {
+        "token": "JWT_TOKEN",
+        "user": {
+            "id": 1,
+            "email": "admin@test.com",
+            "role": "admin",
+            "is_active": true
+        }
+    }
+}
+```
+
+Status:
+
+```text
+200 OK
+```
+
+---
+
+## Invalid Input
+
+Request:
+
+```json
+{
+    "email": "",
+    "password": ""
+}
+```
+
+Response:
+
+```json
+{
+    "success": false,
+    "message": "Email dan password wajib diisi"
+}
+```
+
+Status:
+
+```text
+400 Bad Request
+```
+
+---
+
+## Invalid Credential
+
+Untuk kondisi:
+
+* Email tidak ditemukan
+* Password salah
+
+Response harus sama:
+
+```json
+{
+    "success": false,
+    "message": "Email atau password salah"
+}
+```
+
+Status:
+
+```text
+401 Unauthorized
+```
+
+Jangan membedakan:
+
+```text
+Email tidak ditemukan
+```
+
+dengan:
+
+```text
+Password salah
+```
+
+Tujuannya mencegah user enumeration.
+
+---
+
+# PHASE 5 — Password Hashing dengan bcrypt
+
+Password tidak boleh disimpan sebagai plaintext.
+
+Salah:
+
+```text
+password123
+```
+
+Benar:
+
+```text
+$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+## Testing Development
+
+Untuk kebutuhan development/testing, implementor diperbolehkan menggunakan third-party bcrypt generator untuk membuat bcrypt hash.
+
+Contoh:
+
+```text
+Password:
+password123
+
+Bcrypt Hash:
+$2a$10$...
+```
+
+Kemudian:
+
+```sql
+INSERT INTO users (
+    email,
+    password_hash,
+    role
+)
+VALUES (
+    'admin@test.com',
+    '<BCRYPT_HASH>',
+    'admin'
+);
+```
+
+## Aturan
+
+Third-party bcrypt generator hanya digunakan untuk:
+
+```text
+Development
+Testing
+Dummy Seed Data
+```
+
+Jangan gunakan:
+
+* Password asli user
+* Password production
+* Password administrator sebenarnya
+* Password yang digunakan pada sistem lain
+
+Jangan commit plaintext password ke Git.
+
+Untuk testing lokal, gunakan password dummy.
+
+Contoh:
+
+```text
+Email:
+admin@test.com
+
+Password:
+password123
+```
+
+---
+
+# PHASE 6 — User Repository
+
+## File
+
+```text
+repositories/user_repository.go
+```
+
+Buat:
+
+```go
+type UserRepository struct {
+    DB *sql.DB
+}
+```
+
+Method:
+
+```go
+func (r *UserRepository) FindByEmail(
+    ctx context.Context,
+    email string,
+) (*models.User, error)
+```
+
+Query:
+
+```sql
+SELECT
+    id,
+    email,
+    password_hash,
+    role,
+    is_active,
+    created_at,
+    updated_at
+FROM users
+WHERE LOWER(email) = LOWER($1)
+LIMIT 1;
+```
+
+Gunakan parameterized query.
+
+Salah:
+
+```go
+query := "SELECT * FROM users WHERE email = '" + email + "'"
+```
+
+Benar:
+
+```go
+db.QueryRowContext(
+    ctx,
+    query,
+    email,
+)
+```
+
+## Repository Acceptance Criteria
+
+* [ ] Query menggunakan parameterized query
+* [ ] SQL Injection dapat dicegah
+* [ ] Email dicari secara case-insensitive
+* [ ] User ditemukan dengan benar
+* [ ] User tidak ditemukan menghasilkan error yang sesuai
+* [ ] Repository tidak mengandung logic JWT
+* [ ] Repository tidak mengandung logic HTTP
+
+---
+
+# PHASE 7 — JWT Utility
+
+## File
+
+```text
+utils/jwt.go
+```
+
+Buat typed claims:
+
+```go
+type Claims struct {
+    UserID int64  `json:"user_id"`
+    Email  string `json:"email"`
+    Role   string `json:"role"`
+
+    jwt.RegisteredClaims
+}
+```
+
+Buat service:
+
+```go
+type JWTService struct {
+    Secret     string
+    ExpireHour int
+}
+```
+
+Method:
+
+```go
+func (j *JWTService) GenerateToken(
+    user *models.User,
+) (string, error)
+```
+
+dan:
+
+```go
+func (j *JWTService) ValidateToken(
+    tokenString string,
+) (*Claims, error)
+```
+
+JWT wajib memiliki:
+
+```text
+user_id
+email
+role
+iat
+exp
+```
+
+Contoh:
+
+```json
+{
+    "user_id": 1,
+    "email": "admin@test.com",
+    "role": "admin",
+    "iat": 1720000000,
+    "exp": 1720086400
+}
+```
+
+## Acceptance Criteria
+
+* [ ] JWT berhasil dibuat
+* [ ] JWT memiliki user ID
+* [ ] JWT memiliki email
+* [ ] JWT memiliki role
+* [ ] JWT memiliki issued time
+* [ ] JWT memiliki expiration time
+* [ ] JWT expired ditolak
+* [ ] Signature invalid ditolak
+* [ ] Token tanpa user ID ditolak
+* [ ] Token tanpa role ditolak
+
+---
+
+# PHASE 8 — Auth Service
+
+## File
+
+```text
+services/auth_service.go
+```
+
+Buat:
+
+```go
+type AuthService struct {
+    UserRepository *repositories.UserRepository
+    JWTService     *utils.JWTService
+}
+```
+
+Method:
+
+```go
+func (s *AuthService) Login(
+    ctx context.Context,
+    email string,
+    password string,
+) (*models.LoginResult, error)
+```
+
+Flow:
+
+```text
+Email & Password
+       ↓
+Find User By Email
+       ↓
+User ditemukan?
+       │
+       ├── Tidak → Invalid Credential
+       │
+       └── Ya
+            ↓
+       Is Active?
+            │
+            ├── Tidak → Reject
+            │
+            └── Ya
+                 ↓
+       Compare Password
+                 ↓
+           Password valid?
+                 │
+                 ├── Tidak → Invalid Credential
+                 │
+                 └── Ya
+                      ↓
+                Generate JWT
+                      ↓
+                Return Result
+```
+
+Password verification:
+
+```go
+bcrypt.CompareHashAndPassword(
+    []byte(user.PasswordHash),
+    []byte(password),
+)
+```
+
+## Catatan
+
+Error berikut harus menghasilkan response login yang sama:
+
+```text
+User tidak ditemukan
+Password salah
+```
+
+Response:
+
+```text
+Email atau password salah
+```
+
+---
+
+# PHASE 9 — Auth Controller
+
+## File
+
+```text
+controllers/auth_controller.go
+```
+
+Endpoint:
+
+```text
+POST /api/auth/login
+```
+
+Controller bertanggung jawab terhadap:
+
+```text
+HTTP Request
+       ↓
+Decode JSON
+       ↓
+Validate Input
+       ↓
+Panggil AuthService
+       ↓
+HTTP Response
+```
+
+Controller tidak boleh menjadi tempat:
+
+```text
+SQL Query
+bcrypt logic
+JWT generation
+```
+
+Flow:
+
+```text
+Request
+   ↓
+Decode JSON
+   ↓
+Validasi Email
+   ↓
+Validasi Password
+   ↓
+AuthService.Login()
+   ↓
+Response
+```
+
+---
+
+# PHASE 10 — Auth Middleware
+
+## File
+
+```text
+controllers/auth_middleware.go
+```
+
+Fungsi:
+
+```go
+func AuthMiddleware(
+    next http.Handler,
+) http.Handler
+```
+
+Flow:
+
+```text
+Request
+   ↓
+Authorization Header?
+   │
+   ├── Tidak → 401
+   │
+   └── Ya
+        ↓
+Bearer Token
+        ↓
+Parse JWT
+        ↓
+Signature Valid?
+        │
+        ├── Tidak → 401
+        │
+        └── Ya
+             ↓
+        Token Expired?
+             │
+             ├── Ya → 401
+             │
+             └── Tidak
+                   ↓
+              Ambil Claims
+                   ↓
+             Simpan Context
+                   ↓
+              Next Handler
+```
+
+Header:
+
+```http
+Authorization: Bearer <JWT_TOKEN>
+```
+
+Context minimal menyimpan:
+
+```text
+user_id
+email
+role
+```
+
+Gunakan custom context key, bukan string biasa.
+
+---
+
+# PHASE 11 — Role-Based Authorization
+
+Buat middleware untuk authorization.
+
+Rekomendasi:
+
+```go
+RequireMinimumRole("admin")
+```
+
+Role hierarchy:
+
+```text
+user        = level 1
+admin       = level 2
+super_admin = level 3
+```
+
+Permission:
+
+| Required Role | user | admin | super_admin |
+| ------------- | ---- | ----- | ----------- |
+| user          | ✅    | ✅     | ✅           |
+| admin         | ❌    | ✅     | ✅           |
+| super_admin   | ❌    | ❌     | ✅           |
+
+Contoh:
+
+```text
+GET /api/admin/users
+        ↓
+AuthMiddleware
+        ↓
+RequireMinimumRole("admin")
+        ↓
+Controller
+```
+
+Jika role tidak memenuhi:
+
+```text
+403 Forbidden
+```
+
+Penting:
+
+> Frontend boleh menyembunyikan menu berdasarkan role, tetapi backend tetap wajib melakukan authorization.
+
+---
+
+# PHASE 12 — Auth Routes
+
+## File
+
+```text
+routes/auth_routes.go
+```
+
+Public route:
+
+```text
+POST /api/auth/login
+```
+
+Protected route:
+
+```text
+GET /api/auth/me
+```
+
+Contoh:
+
+```go
+func RegisterAuthRoutes(
+    mux *http.ServeMux,
+) {
+    mux.HandleFunc(
+        "POST /api/auth/login",
+        controllers.LoginHandler,
+    )
+}
+```
+
+Update:
+
+```text
+routes/routes.go
+```
+
+Panggil:
+
+```go
+RegisterAuthRoutes(mux)
+```
+
+---
+
+# PHASE 13 — Endpoint `/api/auth/me`
+
+Buat endpoint:
+
+```text
+GET /api/auth/me
+```
+
+Endpoint wajib menggunakan:
+
+```text
+AuthMiddleware
+```
+
+Flow:
+
+```text
+Request
+   ↓
+JWT Middleware
+   ↓
+Token Valid?
+   │
+   ├── Tidak → 401
+   │
+   └── Ya
+        ↓
+    Ambil user data
+        ↓
+      Response
+```
+
+Response:
+
+```json
+{
+    "success": true,
+    "data": {
+        "id": 1,
+        "email": "admin@test.com",
+        "role": "admin"
+    }
+}
+```
+
+Endpoint ini digunakan frontend untuk memvalidasi apakah token masih valid.
+
+---
+
+# PHASE 14 — Protected Test Endpoint
+
+Buat endpoint sementara:
+
+```text
+GET /api/profile
+```
+
+Dengan:
+
+```text
+AuthMiddleware
+```
+
+Buat juga:
+
+```text
+GET /api/admin/test
+```
+
+Dengan:
+
+```text
+AuthMiddleware
+        ↓
+RequireMinimumRole("admin")
+```
+
+Testing:
+
+| Role        | `/api/admin/test` |
+| ----------- | ----------------- |
+| user        | 403               |
+| admin       | 200               |
+| super_admin | 200               |
+
+---
+
+# PHASE 15 — Frontend API Layer
+
+## File
+
+```text
+frontend/src/lib/api/auth.js
+```
+
+Tujuan:
+
+```text
+LoginPage
+     ↓
+auth.js
+     ↓
+Backend API
+```
+
+Jangan menaruh seluruh logic fetch di component.
+
+API layer bertanggung jawab terhadap:
+
+```text
+POST /api/auth/login
+GET /api/auth/me
+```
+
+---
+
+# PHASE 16 — Frontend Auth Store
+
+## File
+
+```text
+frontend/src/lib/stores/auth.svelte.js
+```
+
+Auth store bertanggung jawab terhadap:
+
+```text
+Token
+Current User
+Authentication State
+Login
+Logout
+```
+
+Storage:
+
+```text
+localStorage
+└── auth_token
+```
+
+Jangan menjadikan:
+
+```text
+localStorage.user_role
+```
+
+sebagai sumber kebenaran authorization.
+
+Frontend hanya menggunakan role untuk:
+
+```text
+Menentukan UI
+Menentukan halaman
+Menentukan menu
+```
+
+Backend tetap menjadi sumber kebenaran authorization.
+
+---
+
+# PHASE 17 — Login Page
+
+## File
+
+```text
+frontend/src/lib/components/LoginPage.svelte
+```
+
+Gunakan komponen UI yang sudah tersedia:
+
+```text
+Card
+Button
+Input
+Badge
+```
+
+Form:
+
+```text
+Email
+Password
+Tombol Masuk
+```
+
+State:
+
+```text
+email
+password
+loading
+error
+```
+
+Flow:
+
+```text
+Submit
+   ↓
+Loading = true
+   ↓
+POST /api/auth/login
+   ↓
+Response
+   │
+   ├── 200
+   │    ↓
+   │  Simpan JWT
+   │    ↓
+   │  Ambil User
+   │    ↓
+   │  Redirect
+   │
+   └── 401
+        ↓
+    Tampilkan Error
+```
+
+Error:
+
+```text
+Email atau password salah
+```
+
+---
+
+# PHASE 18 — Application Authentication Flow
+
+Update:
+
+```text
+frontend/src/App.svelte
+```
+
+Flow:
+
+```text
+Application Start
+       ↓
+Ada auth_token?
+       │
+       ├── Tidak
+       │    ↓
+       │  Login Page
+       │
+       └── Ya
+            ↓
+       GET /api/auth/me
+            ↓
+       Token Valid?
+            │
+            ├── Tidak
+            │    ↓
+            │  Hapus Token
+            │    ↓
+            │  Login Page
+            │
+            └── Ya
+                 ↓
+             Ambil Role
+                 ↓
+              Dashboard
+```
+
+Dengan flow ini, frontend tidak hanya mengecek:
+
+```text
+auth_token exists
+```
+
+tetapi juga:
+
+```text
+auth_token masih valid?
+```
+
+---
+
+# PHASE 19 — Dashboard Placeholder
+
+## User Dashboard
+
+File:
+
+```text
+UserDashboard.svelte
+```
+
+Tampilkan:
+
+```text
+Selamat datang, User!
+```
+
+Informasi:
+
+```text
+Email
+Role
+```
+
+---
+
+## Admin Dashboard
+
+File:
+
+```text
+AdminDashboard.svelte
+```
+
+Tampilkan:
+
+```text
+Selamat datang, Admin!
+```
+
+---
+
+## Super Admin Dashboard
+
+File:
+
+```text
+SuperAdminDashboard.svelte
+```
+
+Tampilkan:
+
+```text
+Selamat datang, Super Admin!
+```
+
+Dashboard placeholder tidak perlu kompleks.
+
+Fokus utama:
+
+```text
+Login
+Redirect
+Authentication
+Authorization
+Logout
+```
+
+---
+
+# PHASE 20 — Logout
+
+Flow:
+
+```text
+Dashboard
+    ↓
+Logout
+    ↓
+Hapus auth_token
+    ↓
+Authentication State = false
+    ↓
+Login Page
+```
+
+Implementasi:
+
+```javascript
+localStorage.removeItem("auth_token");
+```
+
+## Catatan JWT
+
+JWT bersifat stateless.
+
+Artinya:
+
+```text
+User Logout
+    ↓
+Token dihapus dari browser
+```
+
+Tetapi token yang sebelumnya dicuri secara teori masih valid sampai:
+
+```text
+exp
+```
+
+Untuk scope fitur ini:
+
+```text
+Client-side logout
+```
+
+sudah cukup.
+
+Token revocation/blacklist tidak termasuk scope.
+
+
+Jelaskan tahapan-tahapan yang harus dilakukan untuk mengimplementasikan fitur ini, anggap nanti yang mengimplementasikan adalah junior programmer atau model AI yang lebih murah.

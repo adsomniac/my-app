@@ -1,0 +1,7 @@
+Buatkan issue.md yang berisi perencanaan untuk nanti diimplementasikan oleh junior programmer atau AI model yang lebih murah.
+
+Isi dari planning-nya adalah sebagai berikut:
+buatkan halaman pertama yaitu halaman login, lalu buatkan fitur login. pada authtentikasi ini ada role yaitu user,admin, dan super admin.
+
+
+Jelaskan tahapan-tahapan yang harus dilakukan untuk mengimplementasikan fitur ini, anggap nanti yang mengimplementasikan adalah junior programmer atau model AI yang lebih murah.
